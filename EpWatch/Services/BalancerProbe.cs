@@ -152,17 +152,32 @@ public static class BalancerProbe
         int maxEp = 0;
         var timeoutSec = Math.Max(3, ModInit.conf.balancer_timeout_seconds);
 
-        var first = await FetchAsync(entry, sp, auth, desiredSeason, 0, timeoutSec, ct);
+        var first = await FetchAsync(entry, sp, auth, desiredSeason, -1, timeoutSec, ct);
         if (first.jo != null)
         {
             Console.WriteLine($"[EpWatch] probe {entry.balanser} s={desiredSeason} keys: [{string.Join(",", first.jo.Properties().Select(p => p.Name))}]");
             CollectVoices(first.jo, voices, entry.balanser);
             maxEp = CollectMaxEpisode(first.jo, voiceName);
+
+            if (!string.IsNullOrEmpty(voiceName))
+            {
+                int tid = TryFindVoiceTid(first.jo, voiceName);
+                if (tid >= 0)
+                {
+                    var byVoice = await FetchAsync(entry, sp, auth, desiredSeason, tid, timeoutSec, ct);
+                    if (byVoice.jo != null)
+                    {
+                        Console.WriteLine($"[EpWatch] probe {entry.balanser} s={desiredSeason}&t={tid} keys: [{string.Join(",", byVoice.jo.Properties().Select(p => p.Name))}]");
+                        var voiceMax = CollectMaxEpisode(byVoice.jo, null);
+                        if (voiceMax > maxEp) maxEp = voiceMax;
+                    }
+                }
+            }
         }
 
         if (voices.Count == 0 && maxEp == 0)
         {
-            var disc = await FetchAsync(entry, sp, auth, -1, 0, timeoutSec, ct);
+            var disc = await FetchAsync(entry, sp, auth, -1, -1, timeoutSec, ct);
             if (disc.jo != null)
             {
                 Console.WriteLine($"[EpWatch] probe {entry.balanser} discovery keys: [{string.Join(",", disc.jo.Properties().Select(p => p.Name))}]");
@@ -183,6 +198,21 @@ public static class BalancerProbe
                         Console.WriteLine($"[EpWatch] probe {entry.balanser} s={pick} keys: [{string.Join(",", second.Properties().Select(p => p.Name))}]");
                         CollectVoices(second, voices, entry.balanser);
                         maxEp = CollectMaxEpisode(second, voiceName);
+
+                        if (!string.IsNullOrEmpty(voiceName))
+                        {
+                            int tid = TryFindVoiceTid(second, voiceName);
+                            if (tid >= 0)
+                            {
+                                var byVoice = await FetchAsync(entry, sp, auth, pick, tid, timeoutSec, ct);
+                                if (byVoice.jo != null)
+                                {
+                                    Console.WriteLine($"[EpWatch] probe {entry.balanser} s={pick}&t={tid} keys: [{string.Join(",", byVoice.jo.Properties().Select(p => p.Name))}]");
+                                    var voiceMax = CollectMaxEpisode(byVoice.jo, null);
+                                    if (voiceMax > maxEp) maxEp = voiceMax;
+                                }
+                            }
+                        }
                     }
                 }
                 else
@@ -236,7 +266,7 @@ public static class BalancerProbe
     {
         var qs = BuildShowQs(sp, entry.balanser, auth) + "&rjson=true";
         if (s >= 0) qs += $"&s={s}"; else qs += "&s=-1";
-        if (t > 0) qs += $"&t={t}";
+        if (t >= 0) qs += $"&t={t}";
         var url = AppendQs(NormalizeUrl(entry.url), qs);
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
@@ -313,6 +343,26 @@ public static class BalancerProbe
                 }
             }
         }
+    }
+
+    static int TryFindVoiceTid(JObject jo, string voiceName)
+    {
+        if (string.IsNullOrEmpty(voiceName)) return -1;
+        var v = jo["voice"] as JArray;
+        if (v == null) return -1;
+
+        foreach (var vi in v)
+        {
+            var name = vi.Value<string>("name");
+            if (string.IsNullOrEmpty(name)) continue;
+            if (!name.Equals(voiceName, StringComparison.OrdinalIgnoreCase)) continue;
+
+            var url = vi.Value<string>("url") ?? "";
+            var m = Regex.Match(url, @"[?&]t=(\d+)");
+            if (m.Success && int.TryParse(m.Groups[1].Value, out var t))
+                return t;
+        }
+        return -1;
     }
 
     static int CollectMaxEpisode(JObject jo, string voiceName)
