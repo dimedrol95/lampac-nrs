@@ -31,9 +31,9 @@ A module for **lampac NextGen**. Shared viewing in Lampa: you create a room, sha
 - Password protection (optional), locales `uk` / `en` / `ru`, a room badge with a viewer counter over the player.
 - Resilient against idle-timeout proxies (Cloudflare): two-way ping/pong + server heartbeat every 20 s.
 
-### How to connect via `repository.example.yaml`
+### How to connect via `repository.yaml`
 
-In `module/repository.example.yaml` add an entry:
+In `module/repository.yaml` add an entry:
 
 ```yaml
 - repository: https://github.com/nrsua/lampac-nrs
@@ -81,9 +81,9 @@ A module for **lampac NextGen**. Tracks new episodes of your favorite TV shows a
 - A separate **EpWatch** page in the Lampa menu with the list of subscribed shows.
 - HTML message formatting: `<blockquote>`, episode poster as preview, expandable description, season progress bars.
 
-### How to connect via `repository.example.yaml`
+### How to connect via `repository.yaml`
 
-In `module/repository.example.yaml` add an entry:
+In `module/repository.yaml` add an entry:
 
 ```yaml
 - repository: https://github.com/nrsua/lampac-nrs

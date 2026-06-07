@@ -31,9 +31,9 @@
 - Захист паролем (опційно), локалі `uk` / `en` / `ru`, бейдж кімнати з лічильником глядачів поверх плеєра.
 - Стійкість до проксі з idle-timeout (Cloudflare): двосторонній ping/pong + серверний heartbeat кожні 20 с.
 
-### Як підключити через `repository.example.yaml`
+### Як підключити через `repository.yaml`
 
-У файлі `module/repository.example.yaml` додайте запис:
+У файлі `module/repository.yaml` додайте запис:
 
 ```yaml
 - repository: https://github.com/nrsua/lampac-nrs
@@ -81,9 +81,9 @@ URL плагіна: `http(s)://<хост>:<порт>/lampaparty.js`
 - Окрема сторінка **EpWatch** у меню Lampa зі списком підписаних серіалів.
 - HTML-форматування повідомлень: `<blockquote>`, постер серії як preview, expandable-опис, прогрес-бари сезону.
 
-### Як підключити через `repository.example.yaml`
+### Як підключити через `repository.yaml`
 
-У файлі `module/repository.example.yaml` додайте запис:
+У файлі `module/repository.yaml` додайте запис:
 
 ```yaml
 - repository: https://github.com/nrsua/lampac-nrs
