@@ -286,9 +286,61 @@ public class ApiController : BaseController
         var existing = await db.subs.FirstOrDefaultAsync(s =>
             s.chat_id == user.chat_id && s.tmdb_id == data.tmdb_id && s.voice == v);
 
-        var show = await TmdbClient.GetShowAsync(data.tmdb_id, Strings.Normalize(user.lang), HttpContext.RequestAborted);
+        var L = Strings.Normalize(user.lang);
+        var show = await TmdbClient.GetShowAsync(data.tmdb_id, L, HttpContext.RequestAborted);
 
-        int initialLastSeason = data.target_season > 0 ? data.target_season : data.season;
+        int effectiveSeason = data.target_season > 0
+            ? data.target_season
+            : (show?.latest_aired_season ?? data.season);
+
+        int initialLastEpisode = 0;
+        int initialLastVoiceEpisode = 0;
+        int seasonAired = 0;
+        int seasonTotal = 0;
+
+        if (show != null && effectiveSeason > 0)
+        {
+            var seasonEps = await TmdbClient.GetSeasonAsync(data.tmdb_id, effectiveSeason, L, HttpContext.RequestAborted);
+            var airedNow = seasonEps.Where(e => e.air_date.HasValue && e.air_date.Value.Date <= DateTime.UtcNow.Date).ToList();
+            initialLastEpisode = airedNow.Count == 0 ? 0 : airedNow.Max(e => e.episode);
+            seasonAired = airedNow.Count;
+            var sInfo = show.seasons.FirstOrDefault(x => x.season_number == effectiveSeason);
+            seasonTotal = sInfo?.episode_count ?? show.current_season_total;
+        }
+
+        if (!string.IsNullOrEmpty(v) && show != null && effectiveSeason > 0)
+        {
+            try
+            {
+                var auth = RequestAuth();
+                var sp = new Models.ShowParams
+                {
+                    tmdb_id = data.tmdb_id,
+                    title = !string.IsNullOrWhiteSpace(show.name) ? show.name : data.title,
+                    original_title = show.original_name ?? "",
+                    original_language = show.original_language ?? "",
+                    imdb_id = show.imdb_id ?? "",
+                    year = show.first_air_year > 0 ? show.first_air_year : 0
+                };
+
+                var balancers = await BalancerProbe.GetAvailableAsync(sp, auth, HttpContext.RequestAborted);
+                foreach (var b in balancers)
+                {
+                    if (!string.IsNullOrEmpty(data.balancer)
+                        && !string.Equals(b.balanser, data.balancer, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var probed = await BalancerProbe.ProbeAsync(b, sp, effectiveSeason, v, auth, HttpContext.RequestAborted);
+                    if (probed.maxEpisode > initialLastVoiceEpisode)
+                        initialLastVoiceEpisode = probed.maxEpisode;
+                }
+                Console.WriteLine($"[EpWatch] /subscribe initial probe: voice=\"{v}\" -> last_voice_episode={initialLastVoiceEpisode}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[EpWatch] /subscribe initial probe failed: {ex.Message}");
+            }
+        }
 
         SubscriptionRow newRow = null;
         if (existing == null)
@@ -300,16 +352,18 @@ public class ApiController : BaseController
                 title = data.title,
                 voice = v,
                 balancer = data.balancer ?? "",
-                last_season = initialLastSeason,
-                last_episode = data.episode,
-                last_voice_episode = data.voice_episode,
+                last_season = effectiveSeason,
+                last_episode = initialLastEpisode,
+                last_voice_episode = initialLastVoiceEpisode,
                 poster_path = data.poster_path ?? "",
-                season_total = show?.current_season_total ?? 0,
-                season_aired = show?.current_season_aired ?? 0,
+                season_total = seasonTotal,
+                season_aired = seasonAired,
                 target_season = data.target_season,
                 show_status = show?.status ?? "",
+                next_air_date = show?.next_air_date,
                 subscribed_at = DateTime.UtcNow,
-                next_check_at = DateTime.UtcNow.AddMinutes(1)
+                last_checked_at = DateTime.UtcNow,
+                next_check_at = DateTime.UtcNow.AddMinutes(Math.Max(5, ModInit.conf.check_interval_minutes))
             };
             db.subs.Add(newRow);
         }
@@ -318,25 +372,16 @@ public class ApiController : BaseController
             existing.title = data.title;
             existing.balancer = data.balancer ?? existing.balancer;
             existing.poster_path = data.poster_path ?? existing.poster_path;
-            if (data.target_season >= 0 && data.target_season != existing.target_season)
-            {
-                existing.target_season = data.target_season;
-                existing.last_season = data.target_season > 0 ? data.target_season : (data.season > 0 ? data.season : existing.last_season);
-                existing.last_episode = 0;
-                existing.last_voice_episode = 0;
-                existing.next_check_at = DateTime.UtcNow.AddMinutes(1);
-            }
-            else
-            {
-                if (data.season > 0) existing.last_season = data.season;
-                if (data.episode > 0) existing.last_episode = data.episode;
-            }
-            if (show != null)
-            {
-                existing.season_total = show.current_season_total;
-                existing.season_aired = show.current_season_aired;
-                existing.show_status = show.status ?? "";
-            }
+            existing.target_season = data.target_season;
+            existing.last_season = effectiveSeason;
+            existing.last_episode = initialLastEpisode;
+            existing.last_voice_episode = initialLastVoiceEpisode;
+            existing.season_total = seasonTotal;
+            existing.season_aired = seasonAired;
+            existing.show_status = show?.status ?? existing.show_status;
+            existing.next_air_date = show?.next_air_date ?? existing.next_air_date;
+            existing.last_checked_at = DateTime.UtcNow;
+            existing.next_check_at = DateTime.UtcNow.AddMinutes(Math.Max(5, ModInit.conf.check_interval_minutes));
             db.subs.Update(existing);
         }
 
@@ -354,7 +399,6 @@ public class ApiController : BaseController
 
         if (Notifier.Ready)
         {
-            var L = Strings.Normalize(user.lang);
             var vTxt = string.IsNullOrEmpty(v) ? Strings.T(L, "voice_any") : v;
             var text = Strings.T(L, "sub_added", Notifier.Esc(data.title), Notifier.Esc(vTxt));
             _ = Notifier.SendTextAsync(user.chat_id, text, HttpContext.RequestAborted);
@@ -362,22 +406,17 @@ public class ApiController : BaseController
             if (data.target_season > 0 && show != null && string.IsNullOrEmpty(v))
             {
                 var sInfo = show.seasons.FirstOrDefault(x => x.season_number == data.target_season);
-                if (sInfo != null && sInfo.episode_count > 0)
+                if (sInfo != null && sInfo.episode_count > 0 && seasonAired >= sInfo.episode_count)
                 {
-                    var seasonEps = await TmdbClient.GetSeasonAsync(data.tmdb_id, data.target_season, L, HttpContext.RequestAborted);
-                    int aired = seasonEps.Count(e => e.air_date.HasValue && e.air_date.Value.Date <= DateTime.UtcNow.Date);
-                    if (aired >= sInfo.episode_count)
+                    long subId = newRow?.Id ?? existing?.Id ?? 0;
+                    if (subId > 0)
                     {
-                        long subId = newRow?.Id ?? existing?.Id ?? 0;
-                        if (subId > 0)
-                        {
-                            var askText = Strings.T(L, "already_aired_body", Notifier.Esc(data.title), data.target_season, aired, sInfo.episode_count);
-                            var kb = TgMarkup.InlineKeyboard(
-                                new (string, string)[] { (Strings.T(L, "btn_switch_auto"), "auto_" + subId) },
-                                new (string, string)[] { (Strings.T(L, "btn_keep"), "noop") }
-                            );
-                            _ = Notifier.Bot.SendMessageAsync(user.chat_id, askText, kb, Notifier.PARSE_MODE, HttpContext.RequestAborted);
-                        }
+                        var askText = Strings.T(L, "already_aired_body", Notifier.Esc(data.title), data.target_season, seasonAired, sInfo.episode_count);
+                        var kb = TgMarkup.InlineKeyboard(
+                            new (string, string)[] { (Strings.T(L, "btn_switch_auto"), "auto_" + subId) },
+                            new (string, string)[] { (Strings.T(L, "btn_keep"), "noop") }
+                        );
+                        _ = Notifier.Bot.SendMessageAsync(user.chat_id, askText, kb, Notifier.PARSE_MODE, HttpContext.RequestAborted);
                     }
                 }
             }

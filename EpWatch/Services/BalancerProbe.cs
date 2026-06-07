@@ -164,11 +164,13 @@ public static class BalancerProbe
                 int tid = TryFindVoiceTid(first.jo, voiceName);
                 if (tid >= 0)
                 {
-                    var byVoice = await FetchAsync(entry, sp, auth, desiredSeason, tid, timeoutSec, ct);
-                    if (byVoice.jo != null)
+                    var byVoiceUrl = AppendQs(first.url, $"t={tid}");
+                    Console.WriteLine($"[EpWatch] probe {entry.balanser} voice url: {byVoiceUrl}");
+                    var byVoice = await FetchByUrlAsync(byVoiceUrl, auth, timeoutSec, ct);
+                    if (byVoice != null)
                     {
-                        Console.WriteLine($"[EpWatch] probe {entry.balanser} s={desiredSeason}&t={tid} keys: [{string.Join(",", byVoice.jo.Properties().Select(p => p.Name))}]");
-                        var voiceMax = CollectMaxEpisode(byVoice.jo, null);
+                        Console.WriteLine($"[EpWatch] probe {entry.balanser} t={tid} keys: [{string.Join(",", byVoice.Properties().Select(p => p.Name))}]");
+                        var voiceMax = CollectMaxEpisode(byVoice, null);
                         if (voiceMax > maxEp) maxEp = voiceMax;
                     }
                 }
@@ -204,11 +206,13 @@ public static class BalancerProbe
                             int tid = TryFindVoiceTid(second, voiceName);
                             if (tid >= 0)
                             {
-                                var byVoice = await FetchAsync(entry, sp, auth, pick, tid, timeoutSec, ct);
-                                if (byVoice.jo != null)
+                                var byVoiceUrl = AppendQs(followUrl, $"t={tid}");
+                                Console.WriteLine($"[EpWatch] probe {entry.balanser} voice url: {byVoiceUrl}");
+                                var byVoice = await FetchByUrlAsync(byVoiceUrl, auth, timeoutSec, ct);
+                                if (byVoice != null)
                                 {
-                                    Console.WriteLine($"[EpWatch] probe {entry.balanser} s={pick}&t={tid} keys: [{string.Join(",", byVoice.jo.Properties().Select(p => p.Name))}]");
-                                    var voiceMax = CollectMaxEpisode(byVoice.jo, null);
+                                    Console.WriteLine($"[EpWatch] probe {entry.balanser} t={tid} keys: [{string.Join(",", byVoice.Properties().Select(p => p.Name))}]");
+                                    var voiceMax = CollectMaxEpisode(byVoice, null);
                                     if (voiceMax > maxEp) maxEp = voiceMax;
                                 }
                             }
