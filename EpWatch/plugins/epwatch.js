@@ -9,26 +9,26 @@
 
     var META = {
         name:    'EpWatch',
-        version: '0.1.2',
+        version: '0.1.3',
         author:  'nrsua'
     };
 
     var DICT = {
-        epwatch_menu:            { uk: 'EpWatch',                                en: 'EpWatch',                              ru: 'EpWatch' },
-        epwatch_unavailable:     { uk: 'EpWatch недоступний',             en: 'EpWatch is unavailable',        ru: 'EpWatch недоступен' },
+        epwatch_menu:            { uk: 'EpWatch',                               en: 'EpWatch',                             ru: 'EpWatch' },
+        epwatch_unavailable:     { uk: 'EpWatch недоступний',                   en: 'EpWatch is unavailable',              ru: 'EpWatch недоступен' },
         epwatch_link_title:      { uk: 'Прив’яжіть Telegram',                   en: 'Link Telegram',                       ru: 'Привяжите Telegram' },
-        epwatch_link_open_bot:   { uk: 'Відкрити бота',                          en: 'Open the bot',                        ru: 'Открыть бота' },
+        epwatch_link_open_bot:   { uk: 'Відкрити бота',                         en: 'Open the bot',                        ru: 'Открыть бота' },
         epwatch_link_show:       { uk: 'Показати посилання',                    en: 'Show the link',                       ru: 'Показать ссылку' },
         epwatch_bot_offline:     { uk: 'Бот не запущено',                       en: 'The bot is offline',                  ru: 'Бот не запущен' },
         epwatch_title:           { uk: 'TG-сповіщення',                         en: 'TG notifications',                    ru: 'TG-уведомления' },
         epwatch_voice_any:       { uk: '🔔 Будь-яке озвучення',                 en: '🔔 Any voice‑over',                  ru: '🔔 Любая озвучка' },
         epwatch_voice_any_sub:   { uk: 'Коли вийде серія (за TMDB)',            en: 'When the episode airs (TMDB)',        ru: 'При выходе серии (по TMDB)' },
         epwatch_voice_list:      { uk: 'Озвучення на балансирах:',              en: 'Voice‑overs on balancers:',           ru: 'Озвучки на балансирах:' },
-        epwatch_subscribe_only:  { uk: '🔔 Підписатися (без озвучення)',        en: '🔔 Subscribe (no voice‑over)',        ru: '🔔 Подписаться (без озвучки)' },
-        epwatch_unsub:           { uk: '❌ Відписатися',                        en: '❌ Unsubscribe',                      ru: '❌ Отписаться' },
-        epwatch_unsub_prefix:    { uk: '❌ Відписатися: ',                      en: '❌ Unsubscribe: ',                    ru: '❌ Отписаться: ' },
-        epwatch_subscribed:      { uk: '🔔 Підписку оформлено',                 en: '🔔 Subscribed',                       ru: '🔔 Подписка оформлена' },
-        epwatch_subscribed_v:    { uk: '🔔 Підписка: ',                         en: '🔔 Subscribed: ',                     ru: '🔔 Подписка: ' },
+        epwatch_subscribe_only:  { uk: '🔔 Підписатися (без озвучення)',        en: '🔔 Subscribe (no voice‑over)',       ru: '🔔 Подписаться (без озвучки)' },
+        epwatch_unsub:           { uk: '❌ Відписатися',                        en: '❌ Unsubscribe',                     ru: '❌ Отписаться' },
+        epwatch_unsub_prefix:    { uk: '❌ Відписатися: ',                      en: '❌ Unsubscribe: ',                   ru: '❌ Отписаться: ' },
+        epwatch_subscribed:      { uk: '🔔 Підписку оформлено',                 en: '🔔 Subscribed',                      ru: '🔔 Подписка оформлена' },
+        epwatch_subscribed_v:    { uk: '🔔 Підписка: ',                         en: '🔔 Subscribed: ',                    ru: '🔔 Подписка: ' },
         epwatch_unsubscribed:    { uk: 'Підписку скасовано',                    en: 'Subscription removed',                ru: 'Подписка отменена' },
         epwatch_err_network:     { uk: 'Мережева помилка',                      en: 'Network error',                       ru: 'Сетевая ошибка' },
         epwatch_err_unknown:     { uk: 'Помилка',                               en: 'Error',                               ru: 'Ошибка' },
@@ -50,12 +50,13 @@
         epwatch_yes:                   { uk: 'Так',                             en: 'Yes',                                 ru: 'Да' },
         epwatch_no:                    { uk: 'Скасувати',                       en: 'Cancel',                              ru: 'Отмена' },
         epwatch_pick_season:           { uk: 'Оберіть сезон',                   en: 'Pick a season',                       ru: 'Выберите сезон' },
-        epwatch_season_auto:           { uk: '🆕 Автоматично (новий сезон)',     en: '🆕 Auto (newest season)',             ru: '🆕 Автоматически (новый сезон)' },
-        epwatch_season_auto_sub:       { uk: 'Слідкувати завжди за новим',       en: 'Always follow the latest one',         ru: 'Следить всегда за новейшим' },
+        epwatch_season_auto:           { uk: '🆕 Автоматично (новий сезон)',    en: '🆕 Auto (newest season)',            ru: '🆕 Автоматически (новый сезон)' },
+        epwatch_season_auto_sub:       { uk: 'Слідкувати завжди за новим',      en: 'Always follow the latest one',        ru: 'Следить всегда за новейшим' },
         epwatch_season_upcoming:       { uk: 'планується',                      en: 'upcoming',                            ru: 'планируется' },
         epwatch_season_airing:         { uk: 'виходить',                        en: 'airing',                              ru: 'выходит' },
         epwatch_season_aired:          { uk: 'завершено',                       en: 'aired',                               ru: 'вышел' },
-        epwatch_season_eps:            { uk: 'серій',                           en: 'episodes',                            ru: 'серий' }
+        epwatch_season_eps:            { uk: 'серій',                           en: 'episodes',                            ru: 'серий' },
+        epwatch_tmdb_short:            { uk: 'TMDB',                            en: 'TMDB',                                ru: 'TMDB' }
     };
 
     function token() {
@@ -188,11 +189,18 @@
 
             var voice = sub.voice || anyWord;
             var seasonNum = sub.target_season && sub.target_season > 0 ? sub.target_season : sub.last_season;
+            var hasVoice = !!sub.voice;
+            var shownAired = hasVoice ? (sub.last_voice_episode || 0) : (sub.season_aired || 0);
+            var tmdbAired = sub.season_aired || 0;
             var position;
             if (sub.season_total && sub.season_total > 0)
-                position = 'S' + seasonNum + ' E' + (sub.season_aired || 0) + '/' + sub.season_total;
+                position = 'S' + seasonNum + ' E' + shownAired + '/' + sub.season_total;
             else
-                position = 'S' + seasonNum + ' E' + sub.last_episode;
+                position = 'S' + seasonNum + ' E' + (hasVoice ? (sub.last_voice_episode || 0) : sub.last_episode);
+
+            var tmdbHint = '';
+            if (hasVoice && sub.season_total && sub.season_total > 0 && tmdbAired > shownAired)
+                tmdbHint = '<div class="card__subscribe-tmdb">' + L('epwatch_tmdb_short') + ' ' + tmdbAired + '/' + sub.season_total + '</div>';
 
             try {
                 var $card = card.render();
@@ -202,6 +210,7 @@
                         '<div class="card__subscribe">' +
                             '<div class="card__subscribe-status on"></div>' +
                             '<div class="card__subscribe-position">' + position + '</div>' +
+                            tmdbHint +
                             '<div class="card__subscribe-voice">' + voice + '</div>' +
                         '</div>';
                     $view.after(html);
@@ -458,7 +467,8 @@
             '.epwatch-link__qr img{display:block;width:16em;height:16em}' +
             '.epwatch-link__bot{font-size:1.4em;font-weight:600;margin-bottom:0.3em}' +
             '.epwatch-link__hint{opacity:0.6;font-size:1em;margin-bottom:0.8em}' +
-            '.epwatch-link__url{font-size:0.85em;opacity:0.5;word-break:break-all;max-width:30em;margin:0 auto;line-height:1.4}';
+            '.epwatch-link__url{font-size:0.85em;opacity:0.5;word-break:break-all;max-width:30em;margin:0 auto;line-height:1.4}' +
+            '.card__subscribe-tmdb{font-size:0.8em;opacity:0.6;margin-top:0.15em}';
         var style = document.createElement('style');
         style.id = 'epwatch-styles';
         style.appendChild(document.createTextNode(css));
@@ -607,6 +617,7 @@
 
     function init() {
         registerLang();
+        injectStyles();
         Lampa.Component.add(MENU_ACTION, SubsComponent);
         setTimeout(addMenu, 500);
         bindFullListener();
