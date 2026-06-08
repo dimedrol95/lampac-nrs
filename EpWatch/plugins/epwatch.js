@@ -200,7 +200,7 @@
 
             var tmdbHint = '';
             if (hasVoice && sub.season_total && sub.season_total > 0 && tmdbAired > shownAired)
-                tmdbHint = '<div class="card__subscribe-tmdb">' + L('epwatch_tmdb_short') + ' ' + tmdbAired + '/' + sub.season_total + '</div>';
+                tmdbHint = '<span class="card__subscribe-tmdb">' + L('epwatch_tmdb_short') + ' ' + tmdbAired + '/' + sub.season_total + '</span>';
 
             try {
                 var $card = card.render();
@@ -209,8 +209,7 @@
                     var html =
                         '<div class="card__subscribe">' +
                             '<div class="card__subscribe-status on"></div>' +
-                            '<div class="card__subscribe-position">' + position + '</div>' +
-                            tmdbHint +
+                            '<div class="card__subscribe-position">' + position + tmdbHint + '</div>' +
                             '<div class="card__subscribe-voice">' + voice + '</div>' +
                         '</div>';
                     $view.after(html);
@@ -468,7 +467,7 @@
             '.epwatch-link__bot{font-size:1.4em;font-weight:600;margin-bottom:0.3em}' +
             '.epwatch-link__hint{opacity:0.6;font-size:1em;margin-bottom:0.8em}' +
             '.epwatch-link__url{font-size:0.85em;opacity:0.5;word-break:break-all;max-width:30em;margin:0 auto;line-height:1.4}' +
-            '.card__subscribe-tmdb{font-size:0.8em;opacity:0.6;margin-top:0.15em}';
+            '.card__subscribe-tmdb{display:block;font-size:0.72em;opacity:0.55;margin-top:0.15em;line-height:1.1;letter-spacing:0.02em}';
         var style = document.createElement('style');
         style.id = 'epwatch-styles';
         style.appendChild(document.createTextNode(css));
