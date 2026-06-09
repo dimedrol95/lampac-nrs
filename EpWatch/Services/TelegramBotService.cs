@@ -21,30 +21,40 @@ public sealed class TelegramBotService : BackgroundService
 
         var bot = new TelegramApi(ModInit.conf.bot_token.Trim());
 
-        try
+        var initRetry = TimeSpan.FromSeconds(60);
+        while (!ct.IsCancellationRequested)
         {
-            var me = await bot.GetMeAsync(ct);
-            if (me == null)
+            JObject me = null;
+            try { me = await bot.GetMeAsync(ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { return; }
+            catch (Exception ex)
             {
-                Console.WriteLine("[EpWatch] getMe returned empty response");
-                return;
+                Console.WriteLine($"[EpWatch] bot init failed: {ex.Message} - retry in {initRetry.TotalSeconds:F0}s");
             }
-            Notifier.Bot = bot;
-            Notifier.BotUsername = me.Value<string>("username");
-            Console.WriteLine($"[EpWatch] @{Notifier.BotUsername} ready");
+
+            if (me != null)
+            {
+                Notifier.Bot = bot;
+                Notifier.BotUsername = me.Value<string>("username");
+                Console.WriteLine($"[EpWatch] @{Notifier.BotUsername} ready");
+                break;
+            }
+
+            if (me == null)
+                Console.WriteLine($"[EpWatch] getMe returned empty - retry in {initRetry.TotalSeconds:F0}s");
+
+            try { await Task.Delay(initRetry, ct); } catch { return; }
         }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"[EpWatch] bot init failed: {ex.Message}");
-            return;
-        }
+        if (ct.IsCancellationRequested) return;
 
         try { await bot.DeleteWebhookAsync(ct); } catch { }
 
-        await PublishCommands(bot, Strings.DefaultLang, null, ct);
+        try { await PublishCommands(bot, Strings.DefaultLang, null, ct); } catch { }
 
         int? offset = null;
-        var errDelay = TimeSpan.FromSeconds(5);
+        var baseErrDelay = TimeSpan.FromSeconds(5);
+        var maxErrDelay = TimeSpan.FromSeconds(60);
+        var errDelay = baseErrDelay;
 
         while (!ct.IsCancellationRequested)
         {
@@ -52,12 +62,15 @@ public sealed class TelegramBotService : BackgroundService
             try
             {
                 updates = await bot.GetUpdatesAsync(offset, LongPollTimeout, ct);
+                errDelay = baseErrDelay;
             }
-            catch (OperationCanceledException) { break; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex)
             {
-                Console.WriteLine($"[EpWatch] getUpdates: {ex.Message}");
+                var reason = ex is OperationCanceledException ? "timeout/no network" : ex.Message;
+                Console.WriteLine($"[EpWatch] getUpdates: {reason} - retry in {errDelay.TotalSeconds:F0}s");
                 try { await Task.Delay(errDelay, ct); } catch { break; }
+                errDelay = TimeSpan.FromSeconds(Math.Min(maxErrDelay.TotalSeconds, errDelay.TotalSeconds * 2));
                 continue;
             }
 

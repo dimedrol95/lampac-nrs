@@ -25,10 +25,12 @@ public sealed class EpisodeChecker : BackgroundService
         while (!ct.IsCancellationRequested)
         {
             try { await CheckOnceAsync(null, ct); }
-            catch (OperationCanceledException) { break; }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
             catch (Exception ex) { Console.WriteLine($"[EpWatch] check loop error: {ex.Message}"); }
 
-            try { await Task.Delay(interval, ct); } catch { break; }
+            try { await Task.Delay(interval, ct); }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested) { break; }
+            catch { }
         }
     }
 
