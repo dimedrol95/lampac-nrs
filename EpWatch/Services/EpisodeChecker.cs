@@ -12,6 +12,16 @@ namespace EpWatch.Services;
 
 public sealed class EpisodeChecker : BackgroundService
 {
+    static int _spreadSeed = Environment.TickCount;
+    static readonly ThreadLocal<Random> _spreadRng = new(()
+        => new Random(System.Threading.Interlocked.Increment(ref _spreadSeed)));
+
+    static TimeSpan Spread(TimeSpan window)
+    {
+        var halfSec = (int)Math.Max(1, window.TotalSeconds / 2);
+        return TimeSpan.FromSeconds(_spreadRng.Value.Next(0, halfSec));
+    }
+
     protected override async Task ExecuteAsync(CancellationToken ct)
     {
         if (!ModInit.conf.enable)
@@ -216,7 +226,18 @@ public sealed class EpisodeChecker : BackgroundService
                     sub.show_status = show.status ?? "";
                     sub.next_air_date = show.next_air_date;
                     sub.last_checked_at = now;
-                    sub.next_check_at = ComputeNextCheck(now, show);
+
+                    bool voiceBehind = !string.IsNullOrEmpty(sub.voice)
+                                       && sub.last_voice_episode < sub.last_episode;
+                    if (voiceBehind)
+                    {
+                        var poll = TimeSpan.FromMinutes(Math.Max(5, ModInit.conf.check_interval_minutes));
+                        sub.next_check_at = now + poll + Spread(poll);
+                    }
+                    else
+                    {
+                        sub.next_check_at = ComputeNextCheck(now, show) + Spread(TimeSpan.FromMinutes(Math.Max(5, ModInit.conf.check_interval_minutes)));
+                    }
                     changed = true;
 
                     if (changed)
@@ -296,7 +317,7 @@ public sealed class EpisodeChecker : BackgroundService
             using var db = SqlContext.Create();
             foreach (var r in rows)
             {
-                r.next_check_at = DateTime.UtcNow + defer;
+                r.next_check_at = DateTime.UtcNow + defer + Spread(defer);
                 db.subs.Update(r);
             }
             db.SaveChanges();
