@@ -43,6 +43,7 @@
         epwatch_settings_link:         { uk: 'Прив’язати Telegram',             en: 'Link Telegram',                       ru: 'Привязать Telegram' },
         epwatch_settings_lang_auto:    { uk: 'Авто',                            en: 'Auto',                                ru: 'Авто' },
         epwatch_link_qr_hint:          { uk: 'Скануйте QR або відкрийте бота',  en: 'Scan the QR or open the bot',         ru: 'Сканируйте QR или откройте бота' },
+        epwatch_linked:                { uk: 'Telegram-бот прив’язаний',        en: 'Telegram bot linked',                 ru: 'Telegram-бот привязан' },
         epwatch_close:                 { uk: 'Закрити',                         en: 'Close',                               ru: 'Закрыть' },
         epwatch_settings_unlink:       { uk: 'Відв’язати Telegram',             en: 'Unlink Telegram',                     ru: 'Отвязать Telegram' },
         epwatch_unlink_confirm:        { uk: 'Видалити прив’язку та всі підписки?', en: 'Remove the link and all subscriptions?', ru: 'Удалить привязку и все подписки?' },
@@ -232,6 +233,15 @@
         activity.activity.loader(false);
         get(api('/epwatch/link'), function (r) {
             if (!r || !r.success) return Lampa.Noty.show(L('epwatch_unavailable'));
+
+            var pollTimer = null;
+            var attempts = 0;
+            var finished = false;
+
+            function stopPoll() {
+                if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+            }
+
             Lampa.Select.show({
                 title: L('epwatch_link_title'),
                 items: [{ title: L('epwatch_link_open_bot') + (r.bot ? ' @' + r.bot : ''), subtitle: r.link, link: r.link }],
@@ -240,8 +250,20 @@
                     if (typeof Android !== 'undefined' && Android.openBrowser) Android.openBrowser(a.link);
                     else if (window.open) window.open(a.link, '_blank');
                 },
-                onBack: function () { Lampa.Activity.backward(); }
+                onBack: function () { stopPoll(); Lampa.Activity.backward(); }
             });
+
+            pollTimer = setInterval(function () {
+                if (finished || ++attempts > 100) { stopPoll(); return; }
+                get(api('/epwatch/status?tmdb_id=0'), function (s) {
+                    if (finished || !s || !s.linked) return;
+                    finished = true;
+                    stopPoll();
+                    if ($('body').hasClass('selectbox--open')) Lampa.Select.close();
+                    Lampa.Noty.show(L('epwatch_linked'));
+                    Lampa.Activity.replace();
+                });
+            }, 3000);
         });
     }
 
@@ -497,7 +519,18 @@
 
         var html = $('<div></div>').append(body).append(footer);
 
+        var pollTimer = null;
+        var attempts = 0;
+        var finished = false;
+
+        function stopPoll() {
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+        }
+
         var closeAndCallback = function () {
+            if (finished) return;
+            finished = true;
+            stopPoll();
             Lampa.Modal.close();
             if (typeof onClose === 'function') onClose();
         };
@@ -512,6 +545,18 @@
             align: 'center',
             onBack: function () { closeAndCallback(); }
         });
+
+        pollTimer = setInterval(function () {
+            if (finished || ++attempts > 100) { stopPoll(); return; }
+            get(api('/epwatch/status?tmdb_id=0'), function (s) {
+                if (finished || !s || !s.linked) return;
+                finished = true;
+                stopPoll();
+                Lampa.Modal.close();
+                Lampa.Noty.show(L('epwatch_linked'));
+                if (typeof onClose === 'function') onClose();
+            });
+        }, 3000);
     }
 
     function addSettings() {
