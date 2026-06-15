@@ -23,4 +23,8 @@ public class ModuleConf
     public int balancer_throttle_ms { get; set; } = 400;
 
     public string[] allowed_balancers { get; set; } = null;
+
+    public bool tvdb_enable { get; set; } = true;
+
+    public string tvdb_host { get; set; } = "https://skyhook.sonarr.tv/v1/tvdb";
 }

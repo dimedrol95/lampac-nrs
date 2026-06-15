@@ -145,6 +145,52 @@ public static class BalancerProbe
         return m.Success ? m.Groups[1].Value.ToLowerInvariant() : "";
     }
 
+    static readonly string[] _sideContent =
+    {
+        "ova", "ona", "movie", "special", "recap", "spin",
+        "фільм", "фильм", "спешл", "спэшл", "спецвипуск", "спецвыпуск", "пілот", "пилот"
+    };
+
+    static JToken PickSimilar(JArray data, ShowParams sp)
+    {
+        if (data == null || data.Count == 0) return null;
+
+        JToken best = null;
+        int bestScore = int.MinValue;
+
+        foreach (var d in data)
+        {
+            if (d.Type != JTokenType.Object) continue;
+
+            var title = d.Value<string>("title") ?? "";
+            var tl = title.ToLowerInvariant();
+            int year = d.Value<int?>("year") ?? 0;
+            int score = 0;
+
+            if (sp != null && sp.year > 0 && year > 0)
+            {
+                if (year == sp.year) score += 10;
+                else if (Math.Abs(year - sp.year) <= 1) score += 3;
+                else score -= Math.Min(6, Math.Abs(year - sp.year));
+            }
+
+            if (sp != null && !string.IsNullOrEmpty(sp.original_title)
+                && tl.Contains(sp.original_title.ToLowerInvariant()))
+                score += 6;
+
+            if (sp != null && !string.IsNullOrEmpty(sp.title)
+                && tl.Contains(sp.title.ToLowerInvariant()))
+                score += 3;
+
+            foreach (var bad in _sideContent)
+                if (tl.Contains(bad)) { score -= 8; break; }
+
+            if (score > bestScore) { bestScore = score; best = d; }
+        }
+
+        return best;
+    }
+
     public static async Task<(int maxEpisode, List<BalancerVoice> voices)> ProbeAsync(
         BalancerEntry entry, ShowParams sp, int desiredSeason, string voiceName, AuthQs auth, CancellationToken ct)
     {
@@ -246,6 +292,20 @@ public static class BalancerProbe
         return (maxEp, voices);
     }
 
+    public static async Task<List<int>> DiscoverSeasonsAsync(BalancerEntry entry, ShowParams sp, AuthQs auth, CancellationToken ct)
+    {
+        var timeoutSec = Math.Max(3, ModInit.conf.balancer_timeout_seconds);
+
+        var disc = await FetchAsync(entry, sp, auth, -1, -1, timeoutSec, ct);
+        if (disc.jo == null) return new List<int>();
+
+        var tree = ExtractSeasonTree(disc.jo);
+        if (tree.Count > 0)
+            return tree.Keys.OrderBy(x => x).ToList();
+
+        return CollectMaxEpisode(disc.jo, null) > 0 ? new List<int> { 1 } : new List<int>();
+    }
+
     static async Task<JObject> FetchByUrlAsync(string rawUrl, AuthQs auth, int timeoutSec, CancellationToken ct)
     {
         var url = NormalizeUrl(rawUrl);
@@ -306,13 +366,33 @@ public static class BalancerProbe
                 Console.WriteLine($"[EpWatch] probe {entry.balanser} s={s} empty body");
                 return (null, url);
             }
-            try { return (JObject.Parse(body), url); }
+            JObject jo;
+            try { jo = JObject.Parse(body); }
             catch
             {
                 var preview = body.Length > 200 ? body.Substring(0, 200) : body;
                 Console.WriteLine($"[EpWatch] probe {entry.balanser} s={s} non-JSON ({body.Length} chars): {preview}");
                 return (null, url);
             }
+
+            if (jo.Value<string>("type") == "similar")
+            {
+                var best = PickSimilar(jo["data"] as JArray, sp);
+                var bu = best?.Value<string>("url");
+                if (!string.IsNullOrEmpty(bu))
+                {
+                    var sel = s >= 0 ? $"s={s}" : "s=-1";
+                    if (t >= 0) sel += $"&t={t}";
+                    var followUrl = AppendQs(bu, sel);
+                    Console.WriteLine($"[EpWatch] probe {entry.balanser} similar -> \"{best.Value<string>("title")}\" (s={s})");
+                    var followed = await FetchByUrlAsync(followUrl, auth, timeoutSec, ct);
+                    if (followed != null) return (followed, followUrl);
+                }
+                Console.WriteLine($"[EpWatch] probe {entry.balanser} s={s} similar unresolved ({(jo["data"] as JArray)?.Count ?? 0} candidates)");
+                return (null, url);
+            }
+
+            return (jo, url);
         }
         catch (OperationCanceledException) when (cts.IsCancellationRequested && !ct.IsCancellationRequested)
         {

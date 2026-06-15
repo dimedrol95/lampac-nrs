@@ -40,7 +40,9 @@ public class SqlContext : DbContext
             ["last_checked_at"] = "TEXT NULL",
             ["last_voice_episode"] = "INTEGER NOT NULL DEFAULT 0",
             ["balancer"]      = "TEXT NOT NULL DEFAULT ''",
-            ["poster_path"]   = "TEXT NULL"
+            ["poster_path"]   = "TEXT NULL",
+            ["tvdb_id"]       = "INTEGER NOT NULL DEFAULT 0",
+            ["structure_source"] = "TEXT NOT NULL DEFAULT ''"
         };
         var userAdds = new Dictionary<string, string>
         {
@@ -144,6 +146,10 @@ public class SubscriptionRow
     public int season_aired { get; set; }
 
     public int target_season { get; set; }
+
+    public int tvdb_id { get; set; }
+
+    public string structure_source { get; set; } = "";
 
     public string show_status { get; set; } = "";
 

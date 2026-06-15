@@ -297,48 +297,72 @@ public class ApiController : BaseController
         int initialLastVoiceEpisode = 0;
         int seasonAired = 0;
         int seasonTotal = 0;
+        string structureSource = "";
+        int tvdbId = 0;
 
-        if (show != null && effectiveSeason > 0)
+        if (show != null)
         {
-            var seasonEps = await TmdbClient.GetSeasonAsync(data.tmdb_id, effectiveSeason, L, HttpContext.RequestAborted);
-            var airedNow = seasonEps.Where(e => e.air_date.HasValue && e.air_date.Value.Date <= DateTime.UtcNow.Date).ToList();
-            initialLastEpisode = airedNow.Count == 0 ? 0 : airedNow.Max(e => e.episode);
-            seasonAired = airedNow.Count;
-            var sInfo = show.seasons.FirstOrDefault(x => x.season_number == effectiveSeason);
-            seasonTotal = sInfo?.episode_count ?? show.current_season_total;
-        }
-
-        if (!string.IsNullOrEmpty(v) && show != null && effectiveSeason > 0)
-        {
-            try
+            var auth = RequestAuth();
+            var sp = new Models.ShowParams
             {
-                var auth = RequestAuth();
-                var sp = new Models.ShowParams
-                {
-                    tmdb_id = data.tmdb_id,
-                    title = !string.IsNullOrWhiteSpace(show.name) ? show.name : data.title,
-                    original_title = show.original_name ?? "",
-                    original_language = show.original_language ?? "",
-                    imdb_id = show.imdb_id ?? "",
-                    year = show.first_air_year > 0 ? show.first_air_year : 0
-                };
+                tmdb_id = data.tmdb_id,
+                title = !string.IsNullOrWhiteSpace(show.name) ? show.name : data.title,
+                original_title = show.original_name ?? "",
+                original_language = show.original_language ?? "",
+                imdb_id = show.imdb_id ?? "",
+                year = show.first_air_year > 0 ? show.first_air_year : 0
+            };
 
-                var balancers = await BalancerProbe.GetAvailableAsync(sp, auth, HttpContext.RequestAborted);
-                foreach (var b in balancers)
-                {
-                    if (!string.IsNullOrEmpty(data.balancer)
-                        && !string.Equals(b.balanser, data.balancer, StringComparison.OrdinalIgnoreCase))
-                        continue;
+            TvdbShow tvdb = null;
+            List<BalancerEntry> balancers = null;
 
-                    var probed = await BalancerProbe.ProbeAsync(b, sp, effectiveSeason, v, auth, HttpContext.RequestAborted);
-                    if (probed.maxEpisode > initialLastVoiceEpisode)
-                        initialLastVoiceEpisode = probed.maxEpisode;
+            if (!string.IsNullOrEmpty(v))
+            {
+                try
+                {
+                    balancers = await BalancerProbe.GetAvailableAsync(sp, auth, HttpContext.RequestAborted);
+                    tvdb = await TvdbClient.GetByImdbAsync(show.imdb_id, data.tmdb_id, HttpContext.RequestAborted);
+                    tvdbId = tvdb?.tvdb_id ?? 0;
+                    var refBalancer = balancers.FirstOrDefault(x => !string.IsNullOrEmpty(data.balancer)
+                                              && string.Equals(x.balanser, data.balancer, StringComparison.OrdinalIgnoreCase))
+                                      ?? balancers.FirstOrDefault();
+                    structureSource = await StructureResolver.ResolveAsync(show, tvdb, refBalancer, sp, auth, HttpContext.RequestAborted);
                 }
-                Console.WriteLine($"[EpWatch] /subscribe initial probe: voice=\"{v}\" -> last_voice_episode={initialLastVoiceEpisode}");
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[EpWatch] /subscribe resolve failed: {ex.Message}");
+                }
             }
-            catch (Exception ex)
+
+            int latest = show.latest_aired_season > 0 ? show.latest_aired_season : show.number_of_seasons;
+            var baselineRow = new SubscriptionRow { target_season = data.target_season, structure_source = structureSource };
+            var es = await EffectiveStructure.BuildAsync(baselineRow, show, tvdb, latest, L, HttpContext.RequestAborted);
+
+            effectiveSeason = es.effectiveSeason;
+            seasonTotal = es.seasonTotal;
+            seasonAired = es.seasonAired;
+            initialLastEpisode = es.aired.Count == 0 ? 0 : es.aired.Max(e => e.episode);
+
+            if (!string.IsNullOrEmpty(v) && balancers != null && effectiveSeason > 0)
             {
-                Console.WriteLine($"[EpWatch] /subscribe initial probe failed: {ex.Message}");
+                try
+                {
+                    foreach (var b in balancers)
+                    {
+                        if (!string.IsNullOrEmpty(data.balancer)
+                            && !string.Equals(b.balanser, data.balancer, StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        var probed = await BalancerProbe.ProbeAsync(b, sp, effectiveSeason, v, auth, HttpContext.RequestAborted);
+                        if (probed.maxEpisode > initialLastVoiceEpisode)
+                            initialLastVoiceEpisode = probed.maxEpisode;
+                    }
+                    Console.WriteLine($"[EpWatch] /subscribe initial probe: voice=\"{v}\" season={effectiveSeason} -> last_voice_episode={initialLastVoiceEpisode}, structure={structureSource}, tvdb={tvdbId}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[EpWatch] /subscribe initial probe failed: {ex.Message}");
+                }
             }
         }
 
@@ -359,6 +383,8 @@ public class ApiController : BaseController
                 season_total = seasonTotal,
                 season_aired = seasonAired,
                 target_season = data.target_season,
+                tvdb_id = tvdbId,
+                structure_source = structureSource,
                 show_status = show?.status ?? "",
                 next_air_date = show?.next_air_date,
                 subscribed_at = DateTime.UtcNow,
@@ -373,6 +399,8 @@ public class ApiController : BaseController
             existing.balancer = data.balancer ?? existing.balancer;
             existing.poster_path = data.poster_path ?? existing.poster_path;
             existing.target_season = data.target_season;
+            existing.tvdb_id = tvdbId;
+            existing.structure_source = structureSource;
             existing.last_season = effectiveSeason;
             existing.last_episode = initialLastEpisode;
             existing.last_voice_episode = initialLastVoiceEpisode;
@@ -512,6 +540,7 @@ public class ApiController : BaseController
                 season_aired = s.season_aired,
                 target_season = s.target_season,
                 show_status = s.show_status,
+                structure_source = s.structure_source,
                 last_checked_at = s.last_checked_at,
                 subscribed_at = s.subscribed_at
             })

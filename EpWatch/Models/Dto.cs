@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace EpWatch.Models;
 
@@ -75,4 +76,44 @@ public class BalancerVoice
     public string name { get; set; }
     public int t { get; set; }
     public string balancer { get; set; }
+}
+
+public class TvdbEpisode
+{
+    public int season { get; set; }
+    public int episode { get; set; }
+    public int absolute { get; set; }
+    public string title { get; set; }
+    public string overview { get; set; }
+    public DateTime? air_date { get; set; }
+}
+
+public class TvdbShow
+{
+    public int tvdb_id { get; set; }
+    public int tmdb_id { get; set; }
+    public string imdb_id { get; set; }
+    public string status { get; set; }
+    public List<TvdbEpisode> episodes { get; set; } = new();
+
+    public List<int> SeasonNumbers()
+        => episodes.Where(e => e.season > 0).Select(e => e.season).Distinct().OrderBy(x => x).ToList();
+
+    public int SeasonCount()
+        => SeasonNumbers().Count;
+
+    public int EpisodeCount(int season)
+        => episodes.Count(e => e.season == season);
+
+    public int LatestAiredSeason()
+    {
+        var now = DateTime.UtcNow.Date;
+        var aired = episodes
+            .Where(e => e.season > 0 && e.air_date.HasValue && e.air_date.Value.Date <= now)
+            .Select(e => e.season)
+            .ToList();
+        if (aired.Count > 0) return aired.Max();
+        var all = SeasonNumbers();
+        return all.Count > 0 ? all.Max() : 0;
+    }
 }

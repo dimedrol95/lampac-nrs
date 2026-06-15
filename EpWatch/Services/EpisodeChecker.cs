@@ -101,8 +101,6 @@ public sealed class EpisodeChecker : BackgroundService
             if (latestSeason <= 0) latestSeason = show.number_of_seasons;
             if (latestSeason <= 0) { ResetNextCheck(grp.Select(x => x.sub), TimeSpan.FromHours(6)); continue; }
 
-            var seasonCache = new Dictionary<int, List<TmdbEpisode>>();
-
             List<BalancerEntry> balancers = null;
             string title = grp.First().sub.title;
             string groupToken = chatToken.TryGetValue(grp.First().sub.chat_id, out var tk) ? tk : "";
@@ -118,10 +116,14 @@ public sealed class EpisodeChecker : BackgroundService
                 year = show.first_air_year > 0 ? show.first_air_year : 0
             };
 
+            TvdbShow tvdb = null;
             if (grp.Any(x => !string.IsNullOrEmpty(x.sub.voice)))
             {
                 balancers = await BalancerProbe.GetAvailableAsync(sp, groupAuth, ct);
                 if (throttle > TimeSpan.Zero) await Task.Delay(throttle, ct);
+
+                if (!string.IsNullOrEmpty(show.imdb_id))
+                    tvdb = await TvdbClient.GetByImdbAsync(show.imdb_id, tmdbId, ct);
             }
 
             foreach (var item in grp)
@@ -133,14 +135,31 @@ public sealed class EpisodeChecker : BackgroundService
                 {
                     bool changed = false;
 
-                    int effectiveSeason = sub.target_season > 0 ? sub.target_season : latestSeason;
+                    var subToken0 = chatToken.TryGetValue(sub.chat_id, out var stk) ? stk : "";
+                    var subAuth = new AuthQs { token = subToken0, account_email = subToken0, uid = subToken0 };
 
-                    if (!seasonCache.TryGetValue(effectiveSeason, out var seasonEps))
+                    var es = await EffectiveStructure.BuildAsync(sub, show, tvdb, latestSeason, lang, ct);
+
+                    bool isAbsolute = string.Equals(sub.structure_source, StructureResolver.ABSOLUTE, StringComparison.OrdinalIgnoreCase);
+                    if (!string.IsNullOrEmpty(sub.voice) && tvdb != null
+                        && balancers != null && balancers.Count > 0
+                        && (es.effectiveSeason != sub.last_season || isAbsolute))
                     {
-                        seasonEps = await TmdbClient.GetSeasonAsync(tmdbId, effectiveSeason, lang, ct);
-                        seasonCache[effectiveSeason] = seasonEps;
+                        var refBal = balancers.FirstOrDefault(b => !string.IsNullOrEmpty(sub.balancer)
+                                          && string.Equals(b.balanser, sub.balancer, StringComparison.OrdinalIgnoreCase))
+                                     ?? balancers.FirstOrDefault();
+                        var newSrc = await StructureResolver.ResolveAsync(show, tvdb, refBal, sp, subAuth, ct);
+                        if (!string.Equals(newSrc, sub.structure_source ?? "", StringComparison.OrdinalIgnoreCase))
+                        {
+                            Console.WriteLine($"[EpWatch] re-resolve structure {sub.tmdb_id}/{sub.chat_id}: '{sub.structure_source}' -> '{newSrc}'");
+                            sub.structure_source = newSrc;
+                            sub.tvdb_id = tvdb.tvdb_id;
+                            es = await EffectiveStructure.BuildAsync(sub, show, tvdb, latestSeason, lang, ct);
+                        }
                     }
-                    var airedNow = seasonEps.Where(e => e.air_date.HasValue && e.air_date.Value.Date <= now.Date).ToList();
+
+                    int effectiveSeason = es.effectiveSeason;
+                    var airedNow = es.aired;
 
                     if (effectiveSeason != sub.last_season)
                     {
@@ -182,8 +201,6 @@ public sealed class EpisodeChecker : BackgroundService
                                 && !string.Equals(sub.balancer, b.balanser, StringComparison.OrdinalIgnoreCase))
                                 continue;
 
-                            var subToken = chatToken.TryGetValue(sub.chat_id, out var st) ? st : "";
-                            var subAuth = new AuthQs { token = subToken, account_email = subToken, uid = subToken };
                             var probed = await BalancerProbe.ProbeAsync(b, sp, effectiveSeason, sub.voice, subAuth, ct);
                             if (probed.maxEpisode > newMax) newMax = probed.maxEpisode;
                             if (throttle > TimeSpan.Zero) await Task.Delay(throttle, ct);
@@ -212,17 +229,8 @@ public sealed class EpisodeChecker : BackgroundService
                         }
                     }
 
-                    if (effectiveSeason == latestSeason)
-                    {
-                        sub.season_total = show.current_season_total;
-                        sub.season_aired = show.current_season_aired;
-                    }
-                    else
-                    {
-                        var sInfo = show.seasons.FirstOrDefault(x => x.season_number == effectiveSeason);
-                        sub.season_total = sInfo?.episode_count ?? 0;
-                        sub.season_aired = airedNow.Count;
-                    }
+                    sub.season_total = es.seasonTotal;
+                    sub.season_aired = es.seasonAired;
                     sub.show_status = show.status ?? "";
                     sub.next_air_date = show.next_air_date;
                     sub.last_checked_at = now;

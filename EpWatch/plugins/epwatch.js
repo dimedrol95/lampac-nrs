@@ -9,7 +9,7 @@
 
     var META = {
         name:    'EpWatch',
-        version: '0.1.7',
+        version: '0.1.8',
         author:  'nrsua'
     };
 
@@ -189,6 +189,8 @@
             if (!sub) return;
 
             var voice = sub.voice || anyWord;
+            var srcTag = sub.structure_source === 'tvdb' ? ' · TVDB'
+                       : sub.structure_source === 'absolute' ? ' · ABS' : '';
             var seasonNum = sub.target_season && sub.target_season > 0 ? sub.target_season : sub.last_season;
             var hasVoice = !!sub.voice;
             var shownAired = hasVoice ? (sub.last_voice_episode || 0) : (sub.season_aired || 0);
@@ -211,7 +213,7 @@
                         '<div class="card__subscribe">' +
                             '<div class="card__subscribe-status on"></div>' +
                             '<div class="card__subscribe-position">' + position + tmdbHint + '</div>' +
-                            '<div class="card__subscribe-voice">' + voice + '</div>' +
+                            '<div class="card__subscribe-voice">' + voice + srcTag + '</div>' +
                         '</div>';
                     $view.after(html);
                 }

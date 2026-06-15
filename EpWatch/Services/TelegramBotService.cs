@@ -314,6 +314,10 @@ public sealed class TelegramBotService : BackgroundService
         sb.Append("<blockquote>");
         sb.Append("🎬 <b>").Append(Notifier.Esc(s.title)).Append("</b>");
         sb.Append(" · 🎙 ").Append(Notifier.Esc(voice));
+        if (string.Equals(s.structure_source, StructureResolver.TVDB, StringComparison.OrdinalIgnoreCase))
+            sb.Append(" · <code>TVDB</code>");
+        else if (string.Equals(s.structure_source, StructureResolver.ABSOLUTE, StringComparison.OrdinalIgnoreCase))
+            sb.Append(" · <code>ABS</code>");
         sb.Append('\n');
 
         sb.Append("📺 <b>S").Append(seasonNum.ToString("D2")).Append("</b>");
