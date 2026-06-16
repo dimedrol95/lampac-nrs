@@ -16,7 +16,7 @@ public class ModInit : IModuleLoaded, IModuleConfigure
     public static string modpath { get; private set; }
     public static ModuleConf conf { get; private set; } = new();
 
-    static readonly Func<bool, EventMiddleware, Task<bool>> MiddlewareHandler = OnMiddleware;
+    static readonly Func<bool, EventMiddleware, bool> MiddlewareHandler = OnMiddleware;
 
     public void Configure(ConfigureModel app)
     {
@@ -55,10 +55,10 @@ public class ModInit : IModuleLoaded, IModuleConfigure
         EventListener.Middleware -= MiddlewareHandler;
     }
 
-    static Task<bool> OnMiddleware(bool first, EventMiddleware e)
+    static bool OnMiddleware(bool first, EventMiddleware e)
     {
         if (!first || string.IsNullOrWhiteSpace(conf.balancer_uid))
-            return Task.FromResult(true);
+            return true;
 
         var path = e.httpContext.Request.Path.Value;
         if (path != null &&
@@ -70,7 +70,7 @@ public class ModInit : IModuleLoaded, IModuleConfigure
                 requestInfo.IsAnonymousRequest = true;
         }
 
-        return Task.FromResult(true);
+        return true;
     }
 
     static void SyncConf()
